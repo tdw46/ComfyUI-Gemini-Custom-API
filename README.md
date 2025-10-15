@@ -1,11 +1,11 @@
 # ComfyUI Gemini Image Generator 🎨
 
-A comprehensive ComfyUI custom node for generating images using Google's Gemini 2.5 Flash Image models (aka "Nano Banana"). This node provides native integration with Google's latest image generation AI directly within ComfyUI workflows.
+A comprehensive ComfyUI custom node for generating images using Google's Gemini 2.5 Flash Image models (aka "Nano Banana") USING YOUR OWN API KEY. This node provides native integration with Google's latest image generation AI directly within ComfyUI workflows.
 
 
 ## Purpose
 - This is a bring-your-own API key node. It lets you enter and save your own Google AI API key so you do NOT need to buy into ComfyUI's Token system.
-- If you like this, check the author's other repositories for additional Custom API nodes (e.g., OpenAI image generation, etc.).
+- If you like this, check the my other repositories for additional Custom API nodes (e.g., OpenAI image generation, etc.).
 
 ## Features
 

@@ -25,22 +25,13 @@ A comprehensive ComfyUI custom node for generating images using Google's Gemini 
 
 1. Navigate to your ComfyUI custom_nodes directory:
 ```
-cd ComfyUI/custom_nodes/
+cd C:\Users\YOUR_USERNAME\AppData\Local\Programs\ComfyUI\resources\ComfyUI\custom_nodes
 ```
 
-2. Download or copy the folder `ComfyUI-Gemini-Custom-API` into the `custom_nodes/` directory.
-
-3. (Optional) Install the required dependencies into the ComfyUI environment. In ComfyUI Desktop, open the Terminal panel and run:
+2. Install the git repository:
 ```
-python -m pip install -r "<path-to>/custom_nodes/ComfyUI-Gemini-Custom-API/requirements.txt"
+git clone https://github.com/tdw46/ComfyUI-Gemini-Custom-API.git
 ```
-
-### Method 2: Using ComfyUI Manager
-
-1. Open ComfyUI Manager
-2. Search for "Gemini Image Generator"
-3. Click Install
-4. Restart ComfyUI
 
 ### Dependency auto‑install (what the node will do for you)
 - If `google-genai` is not available in the ComfyUI venv, the node will try to locate system Python site‑packages and import from there.

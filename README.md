@@ -2,12 +2,20 @@
 
 A comprehensive ComfyUI custom node for generating images using Google's Gemini 2.5 Flash Image models (aka "Nano Banana"). This node provides native integration with Google's latest image generation AI directly within ComfyUI workflows.
 
+
+## Purpose
+- This is a bring-your-own API key node. It lets you enter and save your own Google AI API key so you do NOT need to buy into ComfyUI's Token system.
+- If you like this, check the author's other repositories for additional Custom API nodes (e.g., OpenAI image generation, etc.).
+
 ## Features
 
 - ✨ **Latest Models**: Support for Gemini 2.5 Flash Image (stable) and Preview versions
-- 🔑 **API Key Management**: Built-in API key storage and management
+- 🔑 **Bring Your Own Key**: Enter your Google AI API key directly in the node (no ComfyUI Tokens required)
+- 🗝️ **API Key Storage**: Saves your key to `config.json` locally; field is masked in the UI (via a small JS extension)
+- 🖼️ **Optional Image Input**: Provide an `IMAGE` input for text+image (image editing) workflows
 - 📐 **Multiple Aspect Ratios**: Support for 1:1, 3:4, 4:3, 9:16, and 16:9
 - 🎯 **Response Modes**: Choose between image-only or text+image responses
+- ⚙️ **Auto‑Install Dependencies**: If `google-genai` is missing in the ComfyUI venv, the node will attempt to install it automatically, and also falls back to system site‑packages when possible
 - 🔄 **Easy Integration**: Seamless integration with ComfyUI workflows
 - 💾 **Persistent Configuration**: API key saved securely for future use
 
@@ -16,21 +24,16 @@ A comprehensive ComfyUI custom node for generating images using Google's Gemini 
 ### Method 1: Manual Installation
 
 1. Navigate to your ComfyUI custom_nodes directory:
-   ```
-   cd ComfyUI/custom_nodes/
-   ```
+```
+cd ComfyUI/custom_nodes/
+```
 
-2. Clone or download this repository:
-   ```
-   git clone https://github.com/yourusername/ComfyUI-Gemini-YourAPI.git
-   ```
-   Or simply extract the folder into the `custom_nodes` directory.
+2. Download or copy the folder `ComfyUI-Gemini-Custom-API` into the `custom_nodes/` directory.
 
-3. Install the required dependencies:
-   ```
-   cd ComfyUI-Gemini-YourAPI
-   pip install -r requirements.txt
-   ```
+3. (Optional) Install the required dependencies into the ComfyUI environment. In ComfyUI Desktop, open the Terminal panel and run:
+```
+python -m pip install -r "<path-to>/custom_nodes/ComfyUI-Gemini-Custom-API/requirements.txt"
+```
 
 ### Method 2: Using ComfyUI Manager
 
@@ -38,6 +41,14 @@ A comprehensive ComfyUI custom node for generating images using Google's Gemini 
 2. Search for "Gemini Image Generator"
 3. Click Install
 4. Restart ComfyUI
+
+### Dependency auto‑install (what the node will do for you)
+- If `google-genai` is not available in the ComfyUI venv, the node will try to locate system Python site‑packages and import from there.
+- If still missing, it will attempt to run `pip install google-genai` in the current ComfyUI venv automatically and retry the import.
+- You can always install manually in the Desktop Terminal:
+```
+python -m pip install google-genai pillow numpy torch
+```
 
 ## Getting Your API Key
 
@@ -53,19 +64,20 @@ A comprehensive ComfyUI custom node for generating images using Google's Gemini 
 
 ### Basic Workflow
 
-1. **Add the Node**: In ComfyUI, right-click and select `Add Node` > `image/generation` > `Gemini Image Generator 🎨`
+1. **Add the Node**: In ComfyUI, right-click and select `Add Node` > `Gemini` > `Gemini Image Generator (Custom API)`
 
 2. **Configure Parameters**:
-   - **prompt**: Describe the image you want to generate
-   - **model**: Choose between:
-     - `gemini-2.5-flash-image` (default, stable version)
-     - `gemini-2.5-flash-image-preview` (latest preview features)
-   - **aspect_ratio**: Select from 1:1, 3:4, 4:3, 9:16, or 16:9
-   - **response_modalities**: 
-     - `Image` - Returns only the generated image
-     - `Text and Image` - Returns both image and descriptive text
-   - **api_key**: Your Google AI API key
-   - **save_api_key**: Check to save API key for future sessions
+- **prompt**: Describe the image you want to generate
+- **model**: Choose between:
+- `gemini-2.5-flash-image` (default, stable version)
+- `gemini-2.5-flash-image-preview` (latest preview features)
+- **aspect_ratio**: Select from 1:1, 3:4, 4:3, 9:16, or 16:9
+- **response_modalities**: 
+- `Image` - Returns only the generated image
+- `Text and Image` - Returns both image and descriptive text
+- **api_key**: Your Google AI API key
+- **save_api_key**: Check to save API key for future sessions
+- **image** (optional): Connect an `IMAGE` to use text+image generation (image editing)
 
 3. **Generate**: Connect the output to a `SaveImage` node or any other image processing nodes
 
@@ -88,6 +100,7 @@ A cute cartoon robot playing with a puppy in a garden, colorful and cheerful
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | prompt | STRING | - | Text description of the image to generate |
+| image | IMAGE (optional) | - | Optional reference image for text+image (image editing) |
 | model | DROPDOWN | gemini-2.5-flash-image | Select Gemini model version |
 | aspect_ratio | DROPDOWN | 1:1 | Output image aspect ratio |
 | response_modalities | DROPDOWN | Image | Output type (Image only or Text+Image) |
@@ -134,6 +147,7 @@ The node provides two outputs:
 - The file is created automatically when you save an API key
 - **Never share your config.json file or commit it to version control**
 - A `.example` file is provided as a template
+- The UI masks the API key field so it is not displayed in plain text
 
 ## Troubleshooting
 
@@ -148,10 +162,13 @@ The node provides two outputs:
 - Try a different prompt or model
 - Check the console for detailed error messages
 
-### Import Errors
-- Ensure all dependencies are installed: `pip install -r requirements.txt`
-- Try updating the google-genai package: `pip install --upgrade google-genai`
-- Restart ComfyUI after installing dependencies
+### "google-genai is not installed" / Import Errors
+- The node will try to locate system site‑packages automatically and import from there.
+- If still missing, it will try to install `google-genai` into the ComfyUI venv and retry.
+- You can also install manually in ComfyUI Desktop Terminal:
+```
+python -m pip install google-genai pillow numpy torch
+```
 
 ### Image Not Appearing
 - Check that the aspect ratio is compatible with your workflow

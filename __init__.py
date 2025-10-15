@@ -7,17 +7,16 @@ try:
     GeminiExtension = _GeminiExtension
     comfy_entrypoint = _comfy_entrypoint
 except Exception:
-    # V3 not available (older ComfyUI or missing comfy_api). Fall back to V1-only.
+    # V3 not available (older ComfyUI or missing comfy_api).
     pass
 
-# Always try to expose V1-style registration for backward compatibility
 try:
     from .gemini_image_node import GeminiImageGenerator as GeminiImageGeneratorV1  # type: ignore
     NODE_CLASS_MAPPINGS = {
         "Gemini Image Generator (Custom API)": GeminiImageGeneratorV1,
     }
     NODE_DISPLAY_NAME_MAPPINGS = {
-        "Gemini Image Generator (Custom API)": "Gemini Image Generator (Custom API) 🎨",
+        "Gemini Image Generator (Custom API)": "Gemini Image Generator (Custom API)",
     }
 except Exception:
     NODE_CLASS_MAPPINGS = {}

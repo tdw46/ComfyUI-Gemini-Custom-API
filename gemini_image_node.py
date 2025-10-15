@@ -75,6 +75,7 @@ class GeminiImageGenerator:
                 }),
             },
             "optional": {
+                "image": ("IMAGE",),
                 "seed": ("INT", {
                     "default": 0,
                     "min": 0,
@@ -86,10 +87,10 @@ class GeminiImageGenerator:
     RETURN_TYPES = ("IMAGE", "STRING",)
     RETURN_NAMES = ("image", "text_response",)
     FUNCTION = "generate_image"
-    CATEGORY = "Gemini"
+    CATEGORY = "Custom API Node/Image/Gemini"
     OUTPUT_NODE = True
     
-    def generate_image(self, prompt, model, aspect_ratio, response_modalities, api_key, save_api_key, seed=0):
+    def generate_image(self, prompt, model, aspect_ratio, response_modalities, api_key, save_api_key, seed=0, image=None):
         """
         Generate an image using Gemini Flash 2.5 Image models
         
@@ -106,19 +107,58 @@ class GeminiImageGenerator:
             Tuple of (image_tensor, text_response)
         """
         
-        # Load saved API key if current one is empty
-        if not api_key:
-            api_key = self._load_api_key()
-        
-        # Save API key if requested
-        if save_api_key and api_key:
-            self._save_api_key(api_key)
-        
-        # Initialize client
-        if not self._initialize_client(api_key):
-            raise ValueError("API key is required. Please provide a Google AI API key.")
-        
         try:
+            # Load saved API key if current one is empty
+            if not api_key:
+                api_key = self._load_api_key()
+            # Save API key if requested
+            if save_api_key and api_key:
+                self._save_api_key(api_key)
+
+            global genai, types
+            if genai is None or types is None:
+                import sys, os
+                candidates = []
+                localapp = os.environ.get("LOCALAPPDATA")
+                if localapp:
+                    py_root = os.path.join(localapp, "Programs", "Python")
+                    if os.path.isdir(py_root):
+                        for d in os.listdir(py_root):
+                            sp = os.path.join(py_root, d, "Lib", "site-packages")
+                            if os.path.isdir(sp):
+                                candidates.append(sp)
+                program_files = os.environ.get("ProgramFiles")
+                if program_files:
+                    for ver in ("Python312","Python311","Python310","Python39","Python38"):
+                        sp = os.path.join(program_files, ver, "Lib", "site-packages")
+                        if os.path.isdir(sp):
+                            candidates.append(sp)
+                for sp in candidates:
+                    if sp not in sys.path:
+                        sys.path.insert(0, sp)
+                try:
+                    from google import genai as _genai  # type: ignore
+                    from google.genai import types as _types  # type: ignore
+                    genai = _genai
+                    types = _types
+                except Exception as e:
+                    # Final fallback: try to install into current env
+                    try:
+                        import sys, subprocess
+                        subprocess.check_call([sys.executable, "-m", "pip", "install", "google-genai"])  # minimal
+                        from google import genai as _genai  # type: ignore
+                        from google.genai import types as _types  # type: ignore
+                        genai = _genai
+                        types = _types
+                    except Exception as e2:
+                        raise ImportError(
+                            "google-genai is not installed and auto-install failed. "
+                            "Run: python -m pip install google-genai"
+                        ) from e2
+
+            # Initialize client
+            if not self._initialize_client(api_key):
+                raise ValueError("API key is required. Please provide a Google AI API key.")
             # Configure response modalities
             modalities = ['Image'] if response_modalities == "Image" else ['Text', 'Image']
             
@@ -135,9 +175,20 @@ class GeminiImageGenerator:
             print(f"Prompt: {prompt}")
             print(f"Aspect Ratio: {aspect_ratio}")
             
+            # Build contents list: prompt plus optional image
+            contents = [prompt]
+            if image is not None:
+                # Convert Comfy tensor [B,H,W,C] float32 0..1 to PIL
+                try:
+                    img_np = (image[0].clamp(0, 1).cpu().numpy() * 255.0).astype(np.uint8)
+                except Exception:
+                    img_np = (np.array(image)[0] * 255.0).astype(np.uint8)
+                pil_in = Image.fromarray(img_np)
+                contents = [prompt, pil_in]
+
             response = self.client.models.generate_content(
                 model=model,
-                contents=[prompt],
+                contents=contents,
                 config=config
             )
             

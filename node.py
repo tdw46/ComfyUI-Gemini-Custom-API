@@ -15,7 +15,8 @@ the extension even if dependencies aren't installed yet.
 
 
 NODE_CATEGORY = "Gemini"
-DISPLAY_NAME = "Gemini Image Generator (Custom API) 🎨"
+# Align node_id with existing workflows; keep emoji only in UI if desired
+DISPLAY_NAME = "Gemini Image Generator (Custom API)"
 
 
 class GeminiImageGenerator(io.ComfyNode):
@@ -32,6 +33,8 @@ class GeminiImageGenerator(io.ComfyNode):
                     default="Create a beautiful landscape with mountains and a sunset",
                     multiline=True,
                 ),
+                # Optional reference image for image+text to image editing
+                io.Image.Input("image", optional=True),
                 io.Combo.Input(
                     "model",
                     options=[
@@ -54,7 +57,7 @@ class GeminiImageGenerator(io.ComfyNode):
                     "api_key",
                     multiline=False,
                     default="",
-                    tooltip="Your Google AI API key (stored locally if Save API Key is enabled).",
+                    tooltip="Your Google AI API key (stored locally if Save API Key is enabled). This field is masked by the node's JS extension.",
                 ),
                 io.Boolean.Input(
                     "save_api_key",
@@ -95,12 +98,53 @@ class GeminiImageGenerator(io.ComfyNode):
     def execute(
         cls,
         prompt: str,
+        image,
         model: str,
         aspect_ratio: str,
         response_modalities: str,
         api_key: str,
         save_api_key: bool,
     ) -> io.NodeOutput:
+        # Helper: extend sys.path with common Windows system Python site-packages
+        def _extend_with_system_sitepackages():
+            import sys, os
+            candidates = []
+            localapp = os.environ.get("LOCALAPPDATA")
+            if localapp:
+                py_root = os.path.join(localapp, "Programs", "Python")
+                if os.path.isdir(py_root):
+                    for d in os.listdir(py_root):
+                        sp = os.path.join(py_root, d, "Lib", "site-packages")
+                        if os.path.isdir(sp):
+                            candidates.append(sp)
+            # Per-user installs (pip --user)
+            appdata_roam = os.environ.get("APPDATA")
+            if appdata_roam:
+                for ver in ("Python312","Python311","Python310","Python39","Python38"):
+                    sp = os.path.join(appdata_roam, "Python", ver, "site-packages")
+                    if os.path.isdir(sp):
+                        candidates.append(sp)
+            program_files = os.environ.get("ProgramFiles")
+            if program_files:
+                for ver in ("Python312","Python311","Python310","Python39","Python38"):
+                    sp = os.path.join(program_files, ver, "Lib", "site-packages")
+                    if os.path.isdir(sp):
+                        candidates.append(sp)
+            # Deduplicate and prepend so they take precedence
+            for sp in candidates:
+                if sp not in sys.path:
+                    sys.path.insert(0, sp)
+        
+        def _pip_install_into_current_env(packages: list[str]) -> tuple[bool, str]:
+            import sys, subprocess
+            try:
+                # Install packages one by one to improve error visibility
+                for p in packages:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", p])
+                return True, "installed"
+            except Exception as e:
+                return False, str(e)
+
         # Lazy-import dependencies so the extension loads before deps are installed
         try:
             from google import genai  # type: ignore
@@ -109,17 +153,48 @@ class GeminiImageGenerator(io.ComfyNode):
             import torch  # type: ignore
             from PIL import Image  # type: ignore
         except Exception as import_err:
-            # Try to give a helpful error without relying on torch
-            return io.NodeOutput(
-                None,
-                ui=comfy_ui.Notification(
-                    title="Gemini API",
-                    message=(
-                        "Missing dependencies. Install: pip install google-genai pillow numpy torch"
-                    ),
-                    level="error",
-                ),
-            )
+            # Try to fall back to system Python's site-packages
+            _extend_with_system_sitepackages()
+            try:
+                from google import genai  # type: ignore
+                from google.genai import types  # type: ignore
+                import numpy as np  # type: ignore
+                import torch  # type: ignore
+                from PIL import Image  # type: ignore
+            except Exception:
+                # Try to install into the current ComfyUI venv and retry
+                ok, why = _pip_install_into_current_env(["google-genai"])  # minimal requirement
+                if ok:
+                    try:
+                        from google import genai  # type: ignore
+                        from google.genai import types  # type: ignore
+                        import numpy as np  # type: ignore
+                        import torch  # type: ignore
+                        from PIL import Image  # type: ignore
+                    except Exception as e:
+                        return io.NodeOutput(
+                            None,
+                            ui=comfy_ui.Notification(
+                                title="Gemini API",
+                                message=f"Installed google-genai but import still failed: {e}",
+                                level="error",
+                            ),
+                        )
+                else:
+                    # Give a helpful error without relying on torch
+                    import sys
+                    return io.NodeOutput(
+                        None,
+                        ui=comfy_ui.Notification(
+                            title="Gemini API",
+                            message=(
+                                "Missing dependencies and auto-install failed.\n"
+                                "Run manually in ComfyUI venv:\n"
+                                f"\n{sys.executable} -m pip install google-genai pillow numpy torch\n"
+                            ),
+                            level="error",
+                        ),
+                    )
         if not api_key:
             api_key = cls._load_api_key()
         if save_api_key and api_key:
@@ -155,9 +230,27 @@ class GeminiImageGenerator(io.ComfyNode):
                 image_config=types.ImageConfig(aspect_ratio=aspect_ratio),
             )
 
+            # Build contents: prompt plus optional image
+            contents = [prompt]
+            if image is not None:
+                import numpy as np  # type: ignore
+                from PIL import Image  # type: ignore
+                # Expecting [B,H,W,C] floats 0-1; take first image in batch
+                try:
+                    import torch  # type: ignore
+                    if isinstance(image, torch.Tensor):
+                        np_img = (image[0].clamp(0, 1).cpu().numpy() * 255.0).astype("uint8")
+                    else:
+                        # Assume numpy-like already in 0..1
+                        np_img = (np.array(image)[0] * 255.0).astype("uint8")
+                except Exception:
+                    np_img = (np.array(image)[0] * 255.0).astype("uint8")
+                pil_img = Image.fromarray(np_img)
+                contents = [prompt, pil_img]
+
             result = client.models.generate_content(
                 model=model,
-                contents=[prompt],
+                contents=contents,
                 config=cfg,
             )
 
@@ -199,7 +292,7 @@ class GeminiImageGenerator(io.ComfyNode):
 
 
 class GeminiExtension(ComfyExtension):
-    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+    async def get_node_list(self):
         return [GeminiImageGenerator]
 
 
